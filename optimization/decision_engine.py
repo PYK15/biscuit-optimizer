@@ -103,8 +103,16 @@ def method_of_the_day(recs: list[dict]) -> dict:
     }
 
 
-def build_horizon_plan(horizon: int = config.DEFAULT_HORIZON_DAYS) -> dict:
-    result = forecast(horizon)
+def build_horizon_plan(horizon: int = config.DEFAULT_HORIZON_DAYS, result: ForecastResult | None = None) -> dict:
+    """`result` lets a caller pass in an already-computed/cached ForecastResult
+    for this horizon (see api/main.py's `_cached_plan`) instead of training
+    the forecaster again from scratch - training is the expensive part
+    (walk-forward backtest + quantile models per target), so reusing it here
+    avoids doing that work twice for the same horizon. Defaults to computing
+    it directly when called standalone (e.g. the tests and the __main__ block
+    below), so existing callers are unaffected."""
+    if result is None:
+        result = forecast(horizon)
     energy_shares = stage_energy_shares()
     waste_shares = stage_waste_shares()
 

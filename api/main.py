@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import json
 import sys
-from functools import lru_cache
+import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Callable, Generic, TypeVar
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,28 +25,90 @@ from models.forecaster import forecast, write_scorecard  # noqa: E402
 from optimization.decision_engine import build_horizon_plan  # noqa: E402
 from sustainability.scoring import add_sustainability_metrics, forecast_sustainability, top_reduction_levers  # noqa: E402
 
-app = FastAPI(title="Biscuit Cost-Optimization & Sustainability API")
+_T = TypeVar("_T")
+
+
+class _SingleFlightCache(Generic[_T]):
+    """Like functools.lru_cache, but coalesces concurrent calls for the same
+    key instead of letting them race. FastAPI runs sync routes in a
+    threadpool, and the background startup warm-up runs in its own thread -
+    plain lru_cache lets two threads that miss the cache at the same moment
+    (e.g. a real request arriving while the warm-up is still training)
+    compute the same expensive result independently, competing for CPU and
+    making *both* slower than a single solo call. Here, the second caller
+    blocks on a per-key lock and reuses the first caller's result instead."""
+
+    def __init__(self, fn: Callable[..., _T]):
+        self._fn = fn
+        self._cache: dict[tuple, _T] = {}
+        self._locks: dict[tuple, threading.Lock] = {}
+        self._locks_guard = threading.Lock()
+
+    def __call__(self, *args) -> _T:
+        if args in self._cache:
+            return self._cache[args]
+        with self._locks_guard:
+            lock = self._locks.setdefault(args, threading.Lock())
+        with lock:
+            if args not in self._cache:  # re-check: another thread may have finished while we waited
+                self._cache[args] = self._fn(*args)
+        return self._cache[args]
+
+
+def _cached_forecast(horizon: int):
+    return forecast(horizon)
+
+
+_cached_forecast = _SingleFlightCache(_cached_forecast)
+
+
+def _cached_plan(horizon: int):
+    # Reuse the same (possibly already-cached) forecast/training result that
+    # /forecast uses for this horizon instead of training again from
+    # scratch - training (walk-forward backtest + quantile models per
+    # target) is the expensive part, and doing it twice per horizon was the
+    # original bug this fixes.
+    return build_horizon_plan(horizon, result=_cached_forecast(horizon))
+
+
+_cached_plan = _SingleFlightCache(_cached_plan)
+
+
+def _cached_historical_scored():
+    return add_sustainability_metrics(apply_variability(to_daily_aggregates()))
+
+
+_cached_historical_scored = _SingleFlightCache(_cached_historical_scored)
+
+
+def _warm_cache() -> None:
+    """Best-effort background warm-up: trains and caches the default
+    horizon's forecast/plan (and loads the historical data) as soon as the
+    process starts, so the first real request doesn't have to wait for that
+    training itself. Runs in a daemon thread from the lifespan startup hook
+    so it never blocks the server from becoming ready to accept requests -
+    if a request for the same horizon arrives before this finishes, it just
+    computes and populates the cache itself as it always could."""
+    try:
+        _cached_historical_scored()
+        _cached_plan(config.DEFAULT_HORIZON_DAYS)  # also populates _cached_forecast for the same horizon
+    except Exception:
+        pass
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    threading.Thread(target=_warm_cache, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Biscuit Cost-Optimization & Sustainability API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@lru_cache(maxsize=8)
-def _cached_forecast(horizon: int):
-    return forecast(horizon)
-
-
-@lru_cache(maxsize=8)
-def _cached_plan(horizon: int):
-    return build_horizon_plan(horizon)
-
-
-@lru_cache(maxsize=1)
-def _cached_historical_scored():
-    return add_sustainability_metrics(apply_variability(to_daily_aggregates()))
 
 
 def _footer() -> dict:
