@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import type { RecommendationsResponse, SustainabilityResponse, ScorecardResponse } from "../types";
-import { Card, PriorityBadge, RefreshingBadge, InfoTip, FadeInItem } from "./ui";
-import { useStaggeredReveal } from "../hooks/useStaggeredReveal";
+import { Card, PriorityBadge, RefreshingBadge, InfoTip } from "./ui";
 
 function fmtInr(n: number) {
   return `Rs ${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -130,7 +129,7 @@ function buildRoadmap(
 
 function RoadmapCard({ item, rank }: { item: RoadmapItem; rank: number }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <li className="rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
@@ -163,7 +162,7 @@ function RoadmapCard({ item, rank }: { item: RoadmapItem; rank: number }) {
           />
         </span>
       </div>
-    </div>
+    </li>
   );
 }
 
@@ -178,20 +177,9 @@ export default function Roadmap({
   scorecard?: ScorecardResponse;
   refreshing?: boolean;
 }) {
-  // /recommendations already returns every day of the horizon in one
-  // response (see api/main.py) - revealedDays only paces how many of those
-  // already-fetched days feed into the roadmap synthesis below, so the
-  // ranked list fills in (and re-ranks as later, possibly higher-priority
-  // days come into view) progressively instead of appearing all at once.
-  const revealedDays = useStaggeredReveal(recommendations?.horizon_days);
-  const visibleRecommendations = useMemo(
-    () => (recommendations ? { ...recommendations, days: recommendations.days.slice(0, revealedDays) } : undefined),
-    [recommendations, revealedDays]
-  );
-
   const items = useMemo(
-    () => buildRoadmap(visibleRecommendations, sustainability, scorecard),
-    [visibleRecommendations, sustainability, scorecard]
+    () => buildRoadmap(recommendations, sustainability, scorecard),
+    [recommendations, sustainability, scorecard]
   );
 
   if (!recommendations) return null;
@@ -201,20 +189,7 @@ export default function Roadmap({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <RefreshingBadge visible={refreshing} />
-        {revealedDays < recommendations.horizon_days && (
-          <span
-            data-reveal-progress="roadmap"
-            data-revealed={revealedDays}
-            data-target={recommendations.horizon_days}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-500"
-          >
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" />
-            Revealing new forecast days... ({revealedDays}/{recommendations.horizon_days})
-          </span>
-        )}
-      </div>
+      <RefreshingBadge visible={refreshing} />
 
       <Card>
         <p className="text-sm text-slate-600">
@@ -230,9 +205,7 @@ export default function Roadmap({
         ) : (
           <ol className="space-y-3">
             {items.map((item, i) => (
-              <FadeInItem key={item.key} as="li">
-                <RoadmapCard item={item} rank={i + 1} />
-              </FadeInItem>
+              <RoadmapCard key={item.key} item={item} rank={i + 1} />
             ))}
           </ol>
         )}

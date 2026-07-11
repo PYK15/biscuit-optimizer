@@ -14,7 +14,6 @@ import {
 import type { ForecastResult, HistoricalResponse } from "../types";
 import { Card, ChartLoadingOverlay, RefreshingBadge, InfoTip } from "./ui";
 import { FORECAST } from "../copy";
-import { useStaggeredReveal } from "../hooks/useStaggeredReveal";
 
 export default function ForecastView({
   forecast,
@@ -29,16 +28,6 @@ export default function ForecastView({
   const [selected, setSelected] = useState(targetKeys[0] ?? "total_cost_inr");
   const activeKey = targetKeys.includes(selected) ? selected : targetKeys[0];
 
-  // The full horizon's forecast points are already present in `forecast` by
-  // the time this renders (see api/main.py - /forecast returns every day of
-  // the horizon in one response). `revealedDays` only paces how many of
-  // those already-fetched points this chart is allowed to plot, so a
-  // horizon jump reveals new forecast days one at a time instead of
-  // extending the line in one instant jump. Keyed off horizon_days (not the
-  // currently selected target's point count) so switching which target is
-  // charted never re-triggers the stagger.
-  const revealedDays = useStaggeredReveal(forecast?.horizon_days);
-
   const chartData = useMemo(() => {
     if (!forecast || !historical || !activeKey) return [];
     const tf = forecast.targets[activeKey];
@@ -46,7 +35,7 @@ export default function ForecastView({
       date: String(d.Date).slice(0, 10),
       actual: typeof d[activeKey] === "number" ? (d[activeKey] as number) : undefined,
     }));
-    const forecastRows = tf.points.slice(0, revealedDays).map((p) => ({
+    const forecastRows = tf.points.map((p) => ({
       date: p.date,
       low: p.low,
       expected: p.expected,
@@ -56,7 +45,7 @@ export default function ForecastView({
     histRows.forEach((r) => merged.set(r.date, { ...merged.get(r.date), ...r }));
     forecastRows.forEach((r) => merged.set(r.date, { ...merged.get(r.date), ...r }));
     return Array.from(merged.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [forecast, historical, activeKey, revealedDays]);
+  }, [forecast, historical, activeKey]);
 
   const splitDate = historical?.days.at(-1)?.Date?.toString().slice(0, 10);
   const tf = forecast?.targets[activeKey];
@@ -86,17 +75,6 @@ export default function ForecastView({
           </div>
           <div className="flex items-center gap-3">
             <RefreshingBadge visible={refreshing} />
-            {forecast && revealedDays < forecast.horizon_days && (
-              <span
-                data-reveal-progress="forecast"
-                data-revealed={revealedDays}
-                data-target={forecast.horizon_days}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-500"
-              >
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" />
-                Revealing new forecast days... ({revealedDays}/{forecast.horizon_days})
-              </span>
-            )}
             {tf && (
               <div className="flex items-center gap-1 text-xs text-slate-500">
                 <span>

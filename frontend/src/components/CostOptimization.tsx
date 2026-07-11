@@ -1,8 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { RecommendationsResponse } from "../types";
-import { Card, PriorityBadge, RefreshingBadge, SourceBadge, InfoTip, FadeInItem, type InfoCopy } from "./ui";
+import { Card, PriorityBadge, RefreshingBadge, SourceBadge, InfoTip, type InfoCopy } from "./ui";
 import { OPTIMIZATION } from "../copy";
-import { useStaggeredReveal } from "../hooks/useStaggeredReveal";
 
 function Th({ children, info }: { children: ReactNode; info?: InfoCopy }) {
   return (
@@ -27,59 +26,27 @@ export default function CostOptimization({
   refreshing?: boolean;
 }) {
   const [dayIdx, setDayIdx] = useState(0);
-
-  // /recommendations already returns every day of the horizon in one
-  // response (see api/main.py) - revealedDays only paces how many of those
-  // already-fetched days get a scrub button, so a horizon jump grows the
-  // button row one day at a time instead of dumping all of them on screen
-  // at once. Existing buttons keep their `date` key and never remount when
-  // later ones are added, so they don't re-fade or flicker.
-  const revealedDays = useStaggeredReveal(recommendations?.horizon_days);
-  const visibleDays = recommendations?.days.slice(0, revealedDays) ?? [];
-
-  // If the currently-scrubbed day hasn't been revealed yet (e.g. the user
-  // had day 10 selected, then the horizon shrank, or is mid-reveal after a
-  // horizon increase), clamp back to the last available day rather than
-  // showing a blank/undefined table.
-  useEffect(() => {
-    if (visibleDays.length > 0 && dayIdx > visibleDays.length - 1) {
-      setDayIdx(visibleDays.length - 1);
-    }
-  }, [visibleDays.length, dayIdx]);
-
-  if (!recommendations || visibleDays.length === 0) return null;
-  const day = visibleDays[Math.min(dayIdx, visibleDays.length - 1)];
+  if (!recommendations) return null;
+  const day = recommendations.days[Math.min(dayIdx, recommendations.days.length - 1)];
 
   return (
     <div className="space-y-4">
       <Card>
-        <div className="mb-2 flex items-center gap-3">
+        <div className="mb-2">
           <RefreshingBadge visible={refreshing} />
-          {revealedDays < recommendations.horizon_days && (
-            <span
-              data-reveal-progress="optimization"
-              data-revealed={revealedDays}
-              data-target={recommendations.horizon_days}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-500"
-            >
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" />
-              Revealing new forecast days... ({revealedDays}/{recommendations.horizon_days})
-            </span>
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-slate-600">Scrub forecast day:</span>
-          {visibleDays.map((d, i) => (
-            <FadeInItem key={d.date} className="inline-flex">
-              <button
-                onClick={() => setDayIdx(i)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium ${
-                  i === dayIdx ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {d.date}
-              </button>
-            </FadeInItem>
+          {recommendations.days.map((d, i) => (
+            <button
+              key={d.date}
+              onClick={() => setDayIdx(i)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                i === dayIdx ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {d.date}
+            </button>
           ))}
         </div>
       </Card>

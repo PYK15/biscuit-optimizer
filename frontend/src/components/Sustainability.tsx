@@ -13,7 +13,6 @@ import {
 import type { SustainabilityResponse } from "../types";
 import { Card, RefreshingBadge, Stat, InfoTip } from "./ui";
 import { SUSTAINABILITY } from "../copy";
-import { useStaggeredReveal } from "../hooks/useStaggeredReveal";
 
 function scoreColor(score: number) {
   if (score >= 60) return "#059669";
@@ -28,17 +27,9 @@ export default function Sustainability({
   sustainability?: SustainabilityResponse;
   refreshing?: boolean;
 }) {
-  // /sustainability already returns every forecast day of the horizon in
-  // one response (see api/main.py) - revealedDays only paces how many of
-  // those already-fetched forecast days are plotted, so the chart's forecast
-  // portion extends one day at a time instead of jumping to its full new
-  // length in one instant swap. Historical bars are unaffected/always shown.
-  const revealedDays = useStaggeredReveal(sustainability?.forecast.length);
-
   if (!sustainability) return null;
   const { historical, forecast, top_levers, advisor_brief } = sustainability;
   const latestHistorical = historical.at(-1);
-  const visibleForecast = forecast.slice(0, revealedDays);
 
   const chartData = [
     ...historical.map((d) => ({
@@ -48,7 +39,7 @@ export default function Sustainability({
       scope3: d.scope3_kgco2e,
       score: d.sustainability_score,
     })),
-    ...visibleForecast.map((d) => ({
+    ...forecast.map((d) => ({
       date: d.date,
       scope1_f: d.scope1_kgco2e,
       scope2_f: d.scope2_kgco2e,
@@ -60,20 +51,7 @@ export default function Sustainability({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <RefreshingBadge visible={refreshing} />
-        {revealedDays < forecast.length && (
-          <span
-            data-reveal-progress="sustainability"
-            data-revealed={revealedDays}
-            data-target={forecast.length}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-500"
-          >
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" />
-            Revealing new forecast days... ({revealedDays}/{forecast.length})
-          </span>
-        )}
-      </div>
+      <RefreshingBadge visible={refreshing} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <div className="flex items-center gap-4">
