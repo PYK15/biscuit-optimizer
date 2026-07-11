@@ -74,6 +74,51 @@ await page.keyboard.press("Escape");
 await howPanel.waitFor({ state: "hidden", timeout: 5000 });
 assert(true, "How This Works panel closes on Escape");
 
+// --- Staggered-reveal helper -------------------------------------------
+// Drives the shared horizon slider to `value` via the keyboard (the only
+// reliable way to fire React's onChange on a controlled range input - see
+// note below), then, while the response is in flight/just landed, captures
+// a genuinely partial DOM state from the given tab's `[data-reveal-progress]`
+// badge before waiting for the reveal to finish and asserting the final
+// settled state. Returns nothing; throws via `assert` on failure.
+async function assertStaggeredReveal({ tabLabel, revealKey, keyPress, screenshotName, finalCountLocator, finalExpectedCount }) {
+  await page.getByRole("button", { name: tabLabel, exact: true }).click();
+  await page.waitForTimeout(400);
+
+  const badge = page.locator(`[data-reveal-progress="${revealKey}"]`);
+  const slider = page.locator("#horizon");
+  await slider.focus();
+  await slider.press(keyPress);
+
+  // Give the new (fully-computed) response time to land and the reveal to
+  // begin, but not enough time for a ~200ms/day stagger to finish.
+  await page.waitForTimeout(450);
+
+  const badgeVisible = (await badge.count()) > 0;
+  assert(badgeVisible, `${tabLabel} tab shows a reveal-progress badge shortly after the horizon change (mid-reveal)`);
+  if (badgeVisible) {
+    const revealed = Number(await badge.getAttribute("data-revealed"));
+    const target = Number(await badge.getAttribute("data-target"));
+    console.log(`${tabLabel} reveal mid-state: ${revealed}/${target}`);
+    assert(
+      revealed > 0 && revealed < target,
+      `${tabLabel} tab is in a genuine partial-reveal state (${revealed}/${target} - neither 0 nor already complete)`
+    );
+  }
+  if (screenshotName) await page.screenshot({ path: screenshotName });
+
+  // Wait for the reveal to finish completely (badge unmounts once
+  // revealed === target), then confirm the final DOM matches the full count.
+  await badge.waitFor({ state: "detached", timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(200);
+  assert((await badge.count()) === 0, `${tabLabel} tab's reveal-progress badge is gone once the reveal finishes`);
+
+  if (finalCountLocator && finalExpectedCount !== undefined) {
+    const finalCount = await finalCountLocator().count();
+    assert(finalCount === finalExpectedCount, `${tabLabel} tab shows all ${finalExpectedCount} days once the reveal completes (got ${finalCount})`);
+  }
+}
+
 // --- Horizon wiring test: Forecast tab ---
 await page.getByRole("button", { name: "Forecast", exact: true }).click();
 await page.waitForTimeout(500);
@@ -143,16 +188,39 @@ assert(
   "/sustainability request fired with the same new horizon (14) - Sustainability stays in sync"
 );
 
-// Confirm the chart actually re-rendered with different data (not just that
-// a request fired) - the date range must extend further out.
-await page.waitForTimeout(1500); // let the DOM update after state settles
+// --- Staggered reveal: capture a genuinely PARTIAL state on the Forecast
+// chart shortly after the response lands, then the FINAL fully-revealed
+// state. The response already contains all 14 days at this point (asserted
+// above via forecastBody.forecast.horizon_days) - this proves the reveal is
+// a client-side pacing choice over already-fetched data, not a slow fetch. ---
+const forecastBadge = page.locator('[data-reveal-progress="forecast"]');
+await page.waitForTimeout(450); // long enough for the reveal to have started, short of finishing 7 new days @200ms/day
+const forecastBadgeVisible = (await forecastBadge.count()) > 0;
+assert(forecastBadgeVisible, "Forecast tab shows a reveal-progress badge shortly after the horizon change (mid-reveal)");
+let midRevealed = 0, midTarget = 0;
+if (forecastBadgeVisible) {
+  midRevealed = Number(await forecastBadge.getAttribute("data-revealed"));
+  midTarget = Number(await forecastBadge.getAttribute("data-target"));
+  console.log(`Forecast reveal mid-state: ${midRevealed}/${midTarget}`);
+  assert(midRevealed > 0 && midRevealed < midTarget, `Forecast chart is in a genuine partial-reveal state (${midRevealed}/${midTarget} new days revealed so far)`);
+}
+const datesMid = await page.$$eval(".recharts-xAxis-tick-labels text", (els) => els.map((e) => e.textContent));
+console.log("Dates mid-reveal (partial state):", datesMid);
+await page.screenshot({ path: "smoke_forecast_partial_reveal.png" });
+
+// Now wait for the reveal to finish completely and confirm the final state.
+await forecastBadge.waitFor({ state: "detached", timeout: 8000 }).catch(() => {});
+await page.waitForTimeout(200);
+assert((await forecastBadge.count()) === 0, "Forecast tab's reveal-progress badge is gone once the reveal finishes");
+
 const datesAfter = await page.$$eval(".recharts-xAxis-tick-labels text", (els) =>
   els.map((e) => e.textContent)
 );
 const maxDateAfter = datesAfter.filter(Boolean).sort().at(-1);
-console.log("Dates after:", datesAfter);
+console.log("Dates after (fully revealed):", datesAfter);
 assert(maxDateAfter !== maxDateBefore, `chart's rendered date range changed after horizon change (before=${maxDateBefore}, after=${maxDateAfter})`);
 assert(maxDateAfter > maxDateBefore, `new max date (${maxDateAfter}) extends further out than before (${maxDateBefore}), consistent with a longer horizon`);
+await page.screenshot({ path: "smoke_forecast_after_horizon_change.png" });
 
 // --- Confirm Cost Optimization tab reflects the same new horizon (7 -> 14 scrub days) ---
 await page.getByRole("button", { name: "Cost Optimization", exact: true }).click();
@@ -168,6 +236,90 @@ const roadmapText = (await page.locator("main").textContent()) ?? "";
 assert(/14-day forecast horizon/.test(roadmapText), "Roadmap tab reflects the same shared horizon (14 days) after the change");
 const roadmapItemCountAfter = await page.locator("ol li").count();
 assert(roadmapItemCountAfter > 0, `Roadmap tab still renders ranked action items after horizon change (found ${roadmapItemCountAfter})`);
+
+// --- Per-tab staggered-reveal tests: Cost Optimization, Sustainability,
+// Roadmap. Each tab only mounts (and starts its own reveal-pacing hook)
+// while active, so we shrink the horizon to 1 first (an instant snap - fewer
+// days needs no staggering) then grow it back to 14 *while that tab is the
+// active one*, which is what actually exercises its own progressive reveal.
+// Horizon=1 has never been requested yet in this run, so - same as any
+// horizon the backend hasn't cached - it genuinely takes several seconds to
+// train (this is the real, pre-existing slowness Step 1 diagnosed); we wait
+// for the actual network response rather than a fixed timeout so this test
+// isn't flaky. Horizon=14 was already requested earlier in this run, so it
+// resolves near-instantly and the reveal we observe next is a clean,
+// isolated pacing effect rather than being entangled with fetch latency. ---
+async function shrinkToOneAndWait(endpointFragment) {
+  const respPromise = page.waitForResponse(
+    (resp) => resp.url().includes(`${endpointFragment}?horizon=1`) && resp.status() === 200,
+    { timeout: 90000 } // horizon=1 is a genuine cache miss - matches the other cold-fetch timeouts in this file
+  );
+  await page.locator("#horizon").focus();
+  await page.locator("#horizon").press("Home"); // -> 1
+  await respPromise;
+  await page.waitForTimeout(300); // let React commit the new state
+}
+
+await page.getByRole("button", { name: "Cost Optimization", exact: true }).click();
+await page.waitForTimeout(300);
+await shrinkToOneAndWait("/recommendations");
+await assertStaggeredReveal({
+  tabLabel: "Cost Optimization",
+  revealKey: "optimization",
+  keyPress: "End", // -> 14 (already cached from earlier in this run)
+  finalCountLocator: () => page.locator("text=Scrub forecast day:").locator("..").locator("button"),
+  finalExpectedCount: 14,
+});
+
+await page.getByRole("button", { name: "Sustainability", exact: true }).click();
+await page.waitForTimeout(300);
+await shrinkToOneAndWait("/sustainability");
+await assertStaggeredReveal({
+  tabLabel: "Sustainability",
+  revealKey: "sustainability",
+  keyPress: "End", // -> 14
+  screenshotName: "smoke_sustainability_partial_reveal.png",
+});
+
+await page.getByRole("button", { name: "Roadmap", exact: true }).click();
+await page.waitForTimeout(300);
+await shrinkToOneAndWait("/recommendations");
+await assertStaggeredReveal({
+  tabLabel: "Roadmap",
+  revealKey: "roadmap",
+  keyPress: "End", // -> 14
+  screenshotName: "smoke_roadmap_partial_reveal.png",
+  finalCountLocator: () => page.locator("ol li"),
+});
+
+// --- Rapid-scrub stress test: drag the horizon back and forth quickly (as
+// if the user is scrubbing the slider) between two values already cached
+// from earlier in this run (1 and 14 - deliberately reusing warm values so
+// this test exercises the REVEAL supersession logic in isolation, not
+// backend cold-cache latency, which is a separate, already-covered concern)
+// and confirm the final settled value is what's actually shown - no stuck
+// "revealing" badge, no duplicate/out-of-order reveals, no errors. The
+// generation counter in useStaggeredReveal.ts is what makes abandoned
+// intermediate reveals get superseded cleanly instead of racing. ---
+await page.getByRole("button", { name: "Forecast", exact: true }).click();
+await page.waitForTimeout(300);
+const rapidSlider = page.locator("#horizon");
+await rapidSlider.focus();
+await rapidSlider.press("Home"); // 1 (cached)
+await rapidSlider.press("End"); // 14 (cached)
+await rapidSlider.press("Home"); // 1 (cached)
+await rapidSlider.press("End"); // 14 (cached) - final settled value
+const finalHorizonValue = await rapidSlider.inputValue();
+assert(finalHorizonValue === "14", `slider settles on the last value dragged to (14), got ${finalHorizonValue}`);
+
+// Give the final horizon's fetch + full reveal chain plenty of time to
+// complete, then confirm nothing is left stuck mid-reveal.
+await page.waitForTimeout(4000);
+const staleBadges = await page.locator("[data-reveal-progress]").count();
+assert(staleBadges === 0, `no reveal-progress badge is stuck showing after rapid scrubbing settles (found ${staleBadges})`);
+const forecastDatesFinal = await page.$$eval(".recharts-xAxis-tick-labels text", (els) => els.map((e) => e.textContent));
+console.log("Dates after rapid scrubbing settles:", forecastDatesFinal);
+assert(forecastDatesFinal.length > 0, "Forecast chart still renders data after rapid horizon scrubbing (not a stuck loading state)");
 
 await page.screenshot({ path: "smoke_forecast_after_horizon_change.png" });
 

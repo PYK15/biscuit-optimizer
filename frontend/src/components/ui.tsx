@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 export function Card({ title, children, className = "", titleExtra }: { title?: string; children: ReactNode; className?: string; titleExtra?: ReactNode }) {
   return (
@@ -161,6 +161,36 @@ export function ChartLoadingOverlay({ visible }: { visible: boolean }) {
         Updating forecast...
       </div>
     </div>
+  );
+}
+
+/**
+ * Wraps a single newly-revealed item (a day-scrub button, a roadmap list
+ * entry, ...) so it fades in on mount instead of popping in abruptly. Items
+ * that were already on screen keep their React key (usually a date) and are
+ * never remounted when a horizon grows, so this fade only ever plays once
+ * per item, the first time it appears - existing items don't re-render or
+ * flicker when later items are added after them.
+ */
+export function FadeInItem({
+  children,
+  className = "",
+  as: Tag = "div",
+}: {
+  children: ReactNode;
+  className?: string;
+  /** HTML tag to render as - use "li" inside an <ol>/<ul> to keep valid markup. */
+  as?: "div" | "li";
+}) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setVisible(true), 10);
+    return () => window.clearTimeout(t);
+  }, []);
+  return (
+    <Tag className={`transition-opacity duration-300 ease-out ${visible ? "opacity-100" : "opacity-0"} ${className}`}>
+      {children}
+    </Tag>
   );
 }
 
