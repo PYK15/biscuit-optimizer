@@ -108,7 +108,7 @@ export default function Overview({
         <Card
           title="Method of the Day"
           titleExtra={<InfoTip {...OVERVIEW.methodOfTheDay} />}
-          className="border-brand-200 bg-brand-50/40 dark:border-brand-800 dark:bg-brand-950/20"
+          className="border-brand-200 bg-brand-50/40 dark:border-brand-800 dark:bg-brand-900/20"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>

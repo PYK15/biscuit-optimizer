@@ -116,7 +116,7 @@ export default function Roadmap({
           ) : (
             <ul className="space-y-2">
               {strategic.map((item) => (
-                <li key={item.key} className="rounded-md bg-brand-50 px-3 py-2 text-sm text-slate-700 dark:bg-brand-950/30 dark:text-slate-200">
+                <li key={item.key} className="rounded-md bg-brand-50 px-3 py-2 text-sm text-slate-700 dark:bg-brand-900/30 dark:text-slate-200">
                   {item.action} <span className="text-xs text-slate-500 dark:text-slate-400">({item.timeframe})</span>
                 </li>
               ))}
