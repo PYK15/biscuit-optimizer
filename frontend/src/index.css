@@ -1,8 +1,98 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: toggling `.dark` on <html> flips every `dark:`
+   utility, instead of only following the OS-level prefers-color-scheme
+   media query - lets the in-app toggle (see hooks/useDarkMode.ts) win. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Brand accent scale - the whole app pulls from this instead of picking
+     raw indigo-* shades ad hoc per component, so the palette reads as one
+     coherent system and a future rebrand is a one-line change. */
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+
+  --font-sans: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
 body {
   margin: 0;
-  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   background: #f7f8fa;
   color: #1f2430;
+  -webkit-font-smoothing: antialiased;
+}
+
+html.dark body {
+  /* Chosen for glare-prone floor environments: near-black surface (not pure
+     black, which crushes shadow/border separation) with a high-contrast
+     off-white body text - checked at >= 4.5:1 against every surface tone
+     used below, not just a naive color-invert of the light palette. */
+  background: #0b1120;
+  color: #e6e9f2;
+}
+
+/* Comfortable touch target for the horizon slider's thumb - native range
+   inputs give no other reliable way to size it. Works alongside
+   `accent-color` (used via Tailwind's `accent-*` classes) in current
+   Chromium/Firefox/Safari without needing `appearance: none`. */
+input[type="range"] {
+  height: 28px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  width: 22px;
+  height: 22px;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+}
+
+/* Simple, snappy fade when switching tabs - not a per-item staggered
+   reveal, just one quick opacity transition on the whole panel. */
+@keyframes tab-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.tab-panel {
+  animation: tab-fade-in 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-panel {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Print stylesheet: hide the interactive app chrome, show only the
+   dedicated one-page summary (see components/PrintSummary.tsx). */
+.print-only {
+  display: none;
+}
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
 }

@@ -13,30 +13,30 @@ export default function HowThisWorks({ open, onClose }: { open: boolean; onClose
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40" onClick={onClose}>
+    <div className="no-print fixed inset-0 z-50 flex justify-end bg-slate-900/40" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label="How This Works"
         data-how-this-works-panel
-        className="h-full w-full max-w-lg overflow-y-auto bg-white p-6 shadow-2xl"
+        className="h-full w-full max-w-lg overflow-y-auto bg-white p-6 shadow-2xl dark:bg-slate-800"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">How This Works</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">How This Works</h2>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            className="min-h-11 min-w-11 rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100"
           >
             Close
           </button>
         </div>
-        <p className="mb-6 text-xs text-slate-400">A 2-minute plain-language walkthrough of the whole system.</p>
+        <p className="mb-6 text-xs text-slate-400 dark:text-slate-500">A 2-minute plain-language walkthrough of the whole system.</p>
 
         <section className="mb-6">
-          <h3 className="mb-2 text-sm font-semibold text-slate-800">1. What this system does</h3>
-          <p className="text-sm leading-relaxed text-slate-600">
+          <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">1. What this system does</h3>
+          <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
             This dashboard predicts tomorrow's biscuit production cost, material usage, waste, and carbon
             emissions before they happen, then recommends what to actually do about them - which
             continuous-improvement method to deploy, on which production stage, and roughly how much it
@@ -45,15 +45,15 @@ export default function HowThisWorks({ open, onClose }: { open: boolean; onClose
         </section>
 
         <section className="mb-6">
-          <h3 className="mb-2 text-sm font-semibold text-slate-800">2. Where the predictions come from</h3>
-          <p className="text-sm leading-relaxed text-slate-600">
+          <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">2. Where the predictions come from</h3>
+          <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
             Every forecast starts from 30 days of real factory data: material quantities, costs, waste and
             emissions per production stage. A machine learning model (a HistGradientBoostingRegressor, a
             model well-suited to small tabular datasets) is trained on that history to predict each target a
             chosen number of days into the future, with a confidence range - not just a single number.
           </p>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            <span className="font-medium text-amber-700">Honest disclosure:</span> the raw 30 days of source
+          <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+            <span className="font-medium text-amber-700 dark:text-amber-400">Honest disclosure:</span> the raw 30 days of source
             data were nearly flat day to day, which would make forecasting trivial and the demo pointless. So
             a documented layer of synthetic variability (weekly patterns, a monthly trend, commodity price
             drift, and random noise - all seeded and reproducible) is optionally added on top of the real
@@ -64,8 +64,8 @@ export default function HowThisWorks({ open, onClose }: { open: boolean; onClose
         </section>
 
         <section className="mb-6">
-          <h3 className="mb-2 text-sm font-semibold text-slate-800">3. How "which method to use" is decided</h3>
-          <p className="text-sm leading-relaxed text-slate-600">
+          <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">3. How "which method to use" is decided</h3>
+          <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
             Recommendations are <span className="font-medium">rule-engine-first, AI-explains-second</span>.
             A deterministic set of rules looks at each stage's predicted cost, its dominant cost driver, and
             how large the opportunity is, and from that picks the method, the priority level, and the
@@ -78,8 +78,8 @@ export default function HowThisWorks({ open, onClose }: { open: boolean; onClose
         </section>
 
         <section className="mb-6">
-          <h3 className="mb-2 text-sm font-semibold text-slate-800">4. How accurate is this, really</h3>
-          <p className="text-sm leading-relaxed text-slate-600">
+          <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">4. How accurate is this, really</h3>
+          <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
             Accuracy is measured with walk-forward backtesting: the model is retrained repeatedly using only
             data up to a given day, then tested on the next day it has never seen, for the last 7 days of
             history. For total production cost, this shows predictions are typically within about 3% of the
@@ -91,8 +91,8 @@ export default function HowThisWorks({ open, onClose }: { open: boolean; onClose
         </section>
 
         <section>
-          <h3 className="mb-2 text-sm font-semibold text-slate-800">5. What to trust vs. what to double-check</h3>
-          <p className="text-sm leading-relaxed text-slate-600">
+          <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">5. What to trust vs. what to double-check</h3>
+          <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
             Not every number is equally certain. Cost, packaging, moulding, and cooling forecasts backtest
             well and can be relied on directly. Raw material quantities (dough, electricity, gas, packaging)
             are harder to beat against the "same weekday last week" baseline, simply because there's only 30

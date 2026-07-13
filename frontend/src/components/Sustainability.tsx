@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import {
   ComposedChart,
   Bar,
@@ -11,7 +12,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { SustainabilityResponse } from "../types";
-import { Card, RefreshingBadge, Stat, InfoTip } from "./ui";
+import { Card, RefreshingBadge, Stat, InfoTip, FilterSelect, EmptyState } from "./ui";
 import { SUSTAINABILITY } from "../copy";
 
 function scoreColor(score: number) {
@@ -27,9 +28,14 @@ export default function Sustainability({
   sustainability?: SustainabilityResponse;
   refreshing?: boolean;
 }) {
+  const [driverFilter, setDriverFilter] = useState("all");
+
+  const drivers = useMemo(() => Array.from(new Set(sustainability?.top_levers.map((l) => l.driver) ?? [])), [sustainability]);
+
   if (!sustainability) return null;
   const { historical, forecast, top_levers, advisor_brief } = sustainability;
   const latestHistorical = historical.at(-1);
+  const filteredLevers = top_levers.filter((l) => driverFilter === "all" || l.driver === driverFilter);
 
   const chartData = [
     ...historical.map((d) => ({
@@ -56,17 +62,17 @@ export default function Sustainability({
         <Card>
           <div className="flex items-center gap-4">
             <div
-              className="flex h-20 w-20 items-center justify-center rounded-full border-4 text-xl font-bold"
+              className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4 text-xl font-bold"
               style={{ borderColor: scoreColor(advisor_brief.sustainability_score), color: scoreColor(advisor_brief.sustainability_score) }}
             >
               {advisor_brief.sustainability_score.toFixed(0)}
             </div>
             <div>
-              <div className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+              <div className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Sustainability score
                 <InfoTip {...SUSTAINABILITY.sustainabilityScore} />
               </div>
-              <div className="text-xs text-slate-500">relative to 30-day baseline mean (rule-based index, not a raw measurement)</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">relative to 30-day baseline mean (rule-based index, not a raw measurement)</div>
             </div>
           </div>
         </Card>
@@ -110,20 +116,28 @@ export default function Sustainability({
       <Card
         title="Scope 1/2/3 emissions - historical & forecast (kgCO2e)"
         titleExtra={
-          <span className="inline-flex items-center gap-3 text-[10px] normal-case tracking-normal text-slate-400">
+          <span className="inline-flex items-center gap-3 text-[10px] normal-case tracking-normal text-slate-500 dark:text-slate-400">
             <span className="inline-flex items-center gap-1">Scope 1 <InfoTip {...SUSTAINABILITY.scope1} /></span>
             <span className="inline-flex items-center gap-1">Scope 2 <InfoTip {...SUSTAINABILITY.scope2} /></span>
             <span className="inline-flex items-center gap-1">Scope 3 <InfoTip {...SUSTAINABILITY.scope3} /></span>
           </span>
         }
       >
-        <ResponsiveContainer width="100%" height={360}>
-          <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eef0f4" />
-            <XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={20} />
-            <YAxis tick={{ fontSize: 11 }} />
+        <ResponsiveContainer width="100%" height={340} className="overflow-hidden">
+          <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 28 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#eef0f4" className="dark:opacity-10" />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 10 }}
+              interval="preserveStartEnd"
+              minTickGap={24}
+              angle={-35}
+              textAnchor="end"
+              height={40}
+            />
+            <YAxis tick={{ fontSize: 10 }} width={40} />
             <Tooltip />
-            <Legend />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
             {splitDate && <ReferenceLine x={splitDate} stroke="#94a3b8" strokeDasharray="4 4" />}
             <Bar dataKey="scope1" stackId="hist" name="Scope 1 (gas)" fill="#f97316" />
             <Bar dataKey="scope2" stackId="hist" name="Scope 2 (electricity)" fill="#0ea5e9" />
@@ -137,23 +151,33 @@ export default function Sustainability({
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card title="Top reduction levers" titleExtra={<InfoTip {...SUSTAINABILITY.reductionLever} />}>
-          <ul className="space-y-3">
-            {top_levers.map((l) => (
-              <li key={l.driver} className="rounded-lg bg-slate-50 p-3">
-                <div className="text-sm font-medium text-slate-800">{l.description}</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  Suggested method: <span className="font-medium text-indigo-700">{l.suggested_method}</span> &middot;{" "}
-                  {l.relative_contribution}% of score gap
-                </div>
-              </li>
-            ))}
-          </ul>
+        <Card
+          title="Top reduction levers"
+          titleExtra={<InfoTip {...SUSTAINABILITY.reductionLever} />}
+        >
+          <div className="mb-3">
+            <FilterSelect label="Driver" value={driverFilter} options={drivers} onChange={setDriverFilter} />
+          </div>
+          {filteredLevers.length === 0 ? (
+            <EmptyState title="No levers match this filter" detail="Choose a different driver or select All." />
+          ) : (
+            <ul className="space-y-3">
+              {filteredLevers.map((l) => (
+                <li key={l.driver} className="rounded-lg bg-slate-50 p-3 dark:bg-slate-700/50">
+                  <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{l.description}</div>
+                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Suggested method: <span className="font-medium text-brand-700 dark:text-brand-300">{l.suggested_method}</span> &middot;{" "}
+                    {l.relative_contribution}% of score gap
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
         <Card title="Sustainability Advisor">
-          <p className="text-sm text-slate-700">{advisor_brief.narrative}</p>
-          <p className="mt-2 text-xs italic text-slate-500">{advisor_brief.sdg_note}</p>
-          <div className="mt-3 text-[10px] uppercase tracking-wide text-slate-400">
+          <p className="text-sm text-slate-700 dark:text-slate-300">{advisor_brief.narrative}</p>
+          <p className="mt-2 text-xs italic text-slate-500 dark:text-slate-400">{advisor_brief.sdg_note}</p>
+          <div className="mt-3 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
             source: {advisor_brief.source === "rule+llm" ? "rule layer + LLM narrative" : "rule layer (templated fallback)"}
           </div>
         </Card>

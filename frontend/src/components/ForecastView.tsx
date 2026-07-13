@@ -54,7 +54,7 @@ export default function ForecastView({
     <div className="space-y-4">
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
             <span>Chart target</span>
             <InfoTip {...FORECAST.chartTargetPicker} />
           </div>
@@ -65,8 +65,10 @@ export default function ForecastView({
               <button
                 key={k}
                 onClick={() => setSelected(k)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium ${
-                  k === activeKey ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                className={`min-h-11 rounded-md px-2.5 text-xs font-medium ${
+                  k === activeKey
+                    ? "bg-brand-600 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
                 }`}
               >
                 {k}
@@ -76,7 +78,7 @@ export default function ForecastView({
           <div className="flex items-center gap-3">
             <RefreshingBadge visible={refreshing} />
             {tf && (
-              <div className="flex items-center gap-1 text-xs text-slate-500">
+              <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                 <span>
                   Unit: <span className="font-medium">{tf.unit}</span> &middot; MAPE {tf.model_metrics.mape}% &middot; R2{" "}
                   {tf.model_metrics.r2} &middot; beats baselines: {tf.beats_baselines ? "yes" : "no"}
@@ -91,7 +93,7 @@ export default function ForecastView({
       <Card
         title={`${activeKey} - actual vs forecast (with 10-90% interval)`}
         titleExtra={
-          <span className="inline-flex items-center gap-3 text-[10px] normal-case tracking-normal text-slate-400">
+          <span className="inline-flex items-center gap-3 text-[10px] normal-case tracking-normal text-slate-400 dark:text-slate-500">
             <span className="inline-flex items-center gap-1">
               prediction band <InfoTip {...FORECAST.predictionBand} />
             </span>
@@ -100,16 +102,24 @@ export default function ForecastView({
             </span>
           </span>
         }
-        className="relative"
+        className="relative overflow-hidden"
       >
         <ChartLoadingOverlay visible={refreshing} />
-        <ResponsiveContainer width="100%" height={380}>
-          <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eef0f4" />
-            <XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={20} />
-            <YAxis tick={{ fontSize: 11 }} />
+        <ResponsiveContainer width="100%" height={360}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 28 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#eef0f4" className="dark:opacity-10" />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 10 }}
+              interval="preserveStartEnd"
+              minTickGap={24}
+              angle={-35}
+              textAnchor="end"
+              height={40}
+            />
+            <YAxis tick={{ fontSize: 10 }} width={40} />
             <Tooltip />
-            <Legend />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
             {splitDate && <ReferenceLine x={splitDate} stroke="#94a3b8" strokeDasharray="4 4" label={{ value: "train | forecast", fontSize: 10, position: "insideTopRight" }} />}
             <Area dataKey={(d: any) => (d.low !== undefined && d.high !== undefined ? [d.low, d.high] : undefined)} name="Prediction interval" stroke="none" fill="#818cf8" fillOpacity={0.18} />
             <Line type="monotone" dataKey="actual" name="Actual" stroke="#0f172a" dot={false} strokeWidth={2} connectNulls />
