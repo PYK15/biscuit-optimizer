@@ -42,6 +42,21 @@ export default function App() {
   const [sustainability, setSustainability] = useState<SustainabilityResponse>();
   const [scorecard, setScorecard] = useState<ScorecardResponse>();
   const [error, setError] = useState<string>();
+
+  // AI-enriched recommendations are fetched separately from the main
+  // (fast, rule-based-only) `recommendations` state above, and only when
+  // the user opts in on the Cost Optimization tab. The default horizon-
+  // scrub fetch above always uses use_llm=false deliberately (see
+  // DEPLOYMENT.md / earlier perf work) - genuinely invoking the LLM for
+  // every stage on every day of a 14-day horizon is real per-call latency
+  // that would make scrubbing feel broken for Overview/Roadmap too, which
+  // both also consume `recommendations`. Keeping this as an isolated,
+  // explicit, on-demand fetch preserves that fast default everywhere else
+  // while still genuinely calling the LLM when AI enrichment is intended.
+  const [aiInsights, setAiInsights] = useState(false);
+  const [recommendationsAi, setRecommendationsAi] = useState<RecommendationsResponse>();
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
+  const [aiInsightsError, setAiInsightsError] = useState<string>();
   // initialLoading blocks the whole page only until the first successful
   // load. Subsequent horizon changes use `refreshing` instead, so tab
   // content (charts, tables) stays visible with an inline indicator rather
@@ -74,6 +89,31 @@ export default function App() {
         setRefreshing(false);
       });
   }, [horizon, retryKey]);
+
+  // Only fetches once AI insights are actually requested (see `aiInsights`
+  // above), and re-fetches whenever the shared horizon changes while that's
+  // still on, so the Cost Optimization tab's AI view never shows stale
+  // numbers from a previous horizon.
+  useEffect(() => {
+    if (!aiInsights) return;
+    let cancelled = false;
+    setAiInsightsLoading(true);
+    setAiInsightsError(undefined);
+    api
+      .recommendations(horizon, true)
+      .then((r) => {
+        if (!cancelled) setRecommendationsAi(r);
+      })
+      .catch((e) => {
+        if (!cancelled) setAiInsightsError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setAiInsightsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [aiInsights, horizon]);
 
   const footer = recommendations?.footer ?? historical?.footer;
 
@@ -132,7 +172,18 @@ export default function App() {
               <Overview forecast={forecast} recommendations={recommendations} sustainability={sustainability} historical={historical} />
             )}
             {tab === "forecast" && <ForecastView forecast={forecast} historical={historical} refreshing={refreshing} />}
-            {tab === "optimization" && <CostOptimization recommendations={recommendations} historical={historical} refreshing={refreshing} />}
+            {tab === "optimization" && (
+              <CostOptimization
+                recommendations={recommendations}
+                historical={historical}
+                refreshing={refreshing}
+                aiInsights={aiInsights}
+                onToggleAiInsights={() => setAiInsights((v) => !v)}
+                recommendationsAi={recommendationsAi}
+                aiInsightsLoading={aiInsightsLoading}
+                aiInsightsError={aiInsightsError}
+              />
+            )}
             {tab === "sustainability" && <Sustainability sustainability={sustainability} refreshing={refreshing} />}
             {tab === "scorecard" && <ModelScorecard scorecard={scorecard} refreshing={refreshing} />}
             {tab === "roadmap" && (

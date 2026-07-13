@@ -125,20 +125,32 @@ export default function Sustainability({
       >
         <ResponsiveContainer width="100%" height={340} className="overflow-hidden">
           <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 28 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eef0f4" className="dark:opacity-10" />
+            {/* See ForecastView.tsx for why these read from CSS custom
+                properties (index.css --chart-*) instead of hardcoded hex -
+                Recharts' axis/grid/tooltip/legend are plain SVG/inline-style
+                props that Tailwind's dark: variant can't reach. */}
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 10 }}
+              tick={{ fontSize: 10, fill: "var(--chart-axis-text)" }}
+              stroke="var(--chart-axis-text)"
               interval="preserveStartEnd"
               minTickGap={24}
               angle={-35}
               textAnchor="end"
               height={40}
             />
-            <YAxis tick={{ fontSize: 10 }} width={40} />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            {splitDate && <ReferenceLine x={splitDate} stroke="#94a3b8" strokeDasharray="4 4" />}
+            <YAxis tick={{ fontSize: 10, fill: "var(--chart-axis-text)" }} stroke="var(--chart-axis-text)" width={40} />
+            <Tooltip
+              contentStyle={{ backgroundColor: "var(--chart-tooltip-bg)", border: "1px solid var(--chart-tooltip-border)", borderRadius: 8 }}
+              labelStyle={{ color: "var(--chart-tooltip-text)" }}
+              itemStyle={{ color: "var(--chart-tooltip-text)" }}
+            />
+            <Legend
+              wrapperStyle={{ fontSize: 11 }}
+              formatter={(value) => <span style={{ color: "var(--chart-legend-text)" }}>{value}</span>}
+            />
+            {splitDate && <ReferenceLine x={splitDate} stroke="var(--chart-reference-line)" strokeDasharray="4 4" />}
             <Bar dataKey="scope1" stackId="hist" name="Scope 1 (gas)" fill="#f97316" />
             <Bar dataKey="scope2" stackId="hist" name="Scope 2 (electricity)" fill="#0ea5e9" />
             <Bar dataKey="scope3" stackId="hist" name="Scope 3 (upstream)" fill="#a3a3a3" />

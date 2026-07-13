@@ -40,6 +40,47 @@ html.dark body {
   color: #e6e9f2;
 }
 
+/* Recharts chart tokens ------------------------------------------------
+   Recharts elements (axis ticks, gridlines, Tooltip, Legend text) are
+   plain SVG/inline-style props, not Tailwind classes - `dark:` utilities
+   can't reach them. These custom properties are consumed directly as
+   `stroke`/`fill`/style values in chart components (e.g. `stroke="var(
+   --chart-axis)"`), which browsers resolve inside SVG presentation
+   attributes exactly like any other CSS value, so the same component
+   tree repaints correctly when `.dark` toggles - no per-chart JS branching
+   needed. Colors below were chosen (not just inverted) for >= 4.5:1
+   contrast against each theme's card background (#ffffff light /
+   #1e293b dark) - this is what fixes the near-invisible "Actual" line,
+   which was hardcoded to #0f172a (slate-900), a color almost identical
+   to the dark-mode card background it was meant to sit on top of. */
+:root {
+  --chart-grid: #eef0f4;
+  --chart-axis-text: #64748b;
+  --chart-reference-line: #94a3b8;
+  --chart-legend-text: #475569;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: #e2e8f0;
+  --chart-tooltip-text: #1f2430;
+  --chart-actual-line: #0f172a;
+  --chart-forecast-line: #4f46e5;
+  --chart-band-fill: rgba(129, 140, 248, 0.18);
+}
+
+html.dark {
+  --chart-grid: #334155;
+  --chart-axis-text: #cbd5e1;
+  --chart-reference-line: #94a3b8;
+  --chart-legend-text: #cbd5e1;
+  --chart-tooltip-bg: #1e293b;
+  --chart-tooltip-border: #475569;
+  --chart-tooltip-text: #e6e9f2;
+  --chart-actual-line: #f1f5f9;
+  /* brand-600 (#4f46e5) measures ~2.4:1 against the dark card background -
+     fails; brand-400 (#818cf8) measures ~4.9:1, passing AA. */
+  --chart-forecast-line: #818cf8;
+  --chart-band-fill: rgba(165, 180, 252, 0.3);
+}
+
 /* Comfortable touch target for the horizon slider's thumb - native range
    inputs give no other reliable way to size it. Works alongside
    `accent-color` (used via Tailwind's `accent-*` classes) in current

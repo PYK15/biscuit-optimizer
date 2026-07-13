@@ -107,23 +107,50 @@ export default function ForecastView({
         <ChartLoadingOverlay visible={refreshing} />
         <ResponsiveContainer width="100%" height={360}>
           <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 28 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#eef0f4" className="dark:opacity-10" />
+            {/* Chart colors are read from the CSS custom properties defined
+                in index.css (--chart-*), which flip automatically with the
+                .dark class - Tailwind's dark: utilities can't reach these
+                plain SVG/style props, so they'd otherwise stay hardcoded to
+                light-mode colors (this previously made the "Actual" line,
+                stroke #0f172a, nearly invisible against the dark-mode card
+                background #1e293b). */}
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 10 }}
+              tick={{ fontSize: 10, fill: "var(--chart-axis-text)" }}
+              stroke="var(--chart-axis-text)"
               interval="preserveStartEnd"
               minTickGap={24}
               angle={-35}
               textAnchor="end"
               height={40}
             />
-            <YAxis tick={{ fontSize: 10 }} width={40} />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            {splitDate && <ReferenceLine x={splitDate} stroke="#94a3b8" strokeDasharray="4 4" label={{ value: "train | forecast", fontSize: 10, position: "insideTopRight" }} />}
-            <Area dataKey={(d: any) => (d.low !== undefined && d.high !== undefined ? [d.low, d.high] : undefined)} name="Prediction interval" stroke="none" fill="#818cf8" fillOpacity={0.18} />
-            <Line type="monotone" dataKey="actual" name="Actual" stroke="#0f172a" dot={false} strokeWidth={2} connectNulls />
-            <Line type="monotone" dataKey="expected" name="Forecast" stroke="#4f46e5" strokeDasharray="4 2" dot={false} strokeWidth={2} connectNulls />
+            <YAxis tick={{ fontSize: 10, fill: "var(--chart-axis-text)" }} stroke="var(--chart-axis-text)" width={40} />
+            <Tooltip
+              contentStyle={{ backgroundColor: "var(--chart-tooltip-bg)", border: "1px solid var(--chart-tooltip-border)", borderRadius: 8 }}
+              labelStyle={{ color: "var(--chart-tooltip-text)" }}
+              itemStyle={{ color: "var(--chart-tooltip-text)" }}
+            />
+            <Legend
+              wrapperStyle={{ fontSize: 11 }}
+              formatter={(value) => <span style={{ color: "var(--chart-legend-text)" }}>{value}</span>}
+            />
+            {splitDate && (
+              <ReferenceLine
+                x={splitDate}
+                stroke="var(--chart-reference-line)"
+                strokeDasharray="4 4"
+                label={{ value: "train | forecast", fontSize: 10, position: "insideTopRight", fill: "var(--chart-axis-text)" }}
+              />
+            )}
+            <Area
+              dataKey={(d: any) => (d.low !== undefined && d.high !== undefined ? [d.low, d.high] : undefined)}
+              name="Prediction interval"
+              stroke="none"
+              fill="var(--chart-band-fill)"
+            />
+            <Line type="monotone" dataKey="actual" name="Actual" stroke="var(--chart-actual-line)" dot={false} strokeWidth={2} connectNulls />
+            <Line type="monotone" dataKey="expected" name="Forecast" stroke="var(--chart-forecast-line)" strokeDasharray="4 2" dot={false} strokeWidth={2} connectNulls />
           </ComposedChart>
         </ResponsiveContainer>
       </Card>
